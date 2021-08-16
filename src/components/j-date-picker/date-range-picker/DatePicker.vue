@@ -19,17 +19,17 @@
       </div>
 
       <!-- Days in previous month -->
-      <div class="text-light day" @click.stop="clickDate('p', calendarStats.daysInPrevMonth - (calendarStats.daysPaddedBefore - day))" v-for="(day, idx) in calendarStats.daysPaddedBefore" :key="'p' + day + idx + forceRender">
+      <div class="text-light" :class="{'highlight': isDateInBetweenRange(calendarStats.daysInPrevMonth - (calendarStats.daysPaddedBefore - day), -1)}" @click.stop="clickDate('p', calendarStats.daysInPrevMonth - (calendarStats.daysPaddedBefore - day))" v-for="(day, idx) in calendarStats.daysPaddedBefore" :key="'p' + day + idx + forceRender">
         <div class="day">{{ calendarStats.daysInPrevMonth - (calendarStats.daysPaddedBefore - day) }}</div>
       </div>
 
       <!-- Days in current month -->
-      <div @click.stop="clickDate('c', day)" v-for="(day, idx) in calendarStats.daysInMonth" :key="'c' + day + idx + forceRender">
+      <div :class="{'active': isDateSelected(day), 'highlight': isDateInBetweenRange(day)}" @click.stop="clickDate('c', day)" v-for="(day, idx) in calendarStats.daysInMonth" :key="'c' + day + idx + forceRender">
         <div class="day">{{ day }}</div>
       </div>
 
       <!-- Days in previous month -->
-      <div class="text-light" @click.stop="clickDate('a', day)" v-for="(day, idx) in calendarStats.daysPaddedAfter" :key="'a' + day + idx + forceRender">
+      <div class="text-light" :class="{'highlight': isDateInBetweenRange(day, +1)}" @click.stop="clickDate('a', day)" v-for="(day, idx) in calendarStats.daysPaddedAfter" :key="'a' + day + idx + forceRender">
         <div class="day">{{ day }}</div>
       </div>
     </div>
@@ -40,13 +40,21 @@
 </template>
 
 <script>
-import { daysInMonth, firstDayOfMonth } from '../utils/utils'
+import { daysInMonth, firstDayOfMonth, isSameDate } from '../utils/utils'
 export default {
   name: 'date-picker',
   props: {
     selectedDate: {
       type: Date,
       default: null
+    },
+    selectDateRange: {
+      type: Array,
+      default: () => []
+    },
+    isStart: {
+      type: Boolean,
+      default: false
     }
   },
   data () {
@@ -94,7 +102,21 @@ export default {
         this.populateCalendarStats(selectDate ? selectDate : this.currentDate)
         this.forceRender++
       }
-    }
+    },
+    selectDateRange: {
+      immediate: true,
+      deep: true,
+      handler (selectDateRange) {
+        const range = selectDateRange.filter(dateRangeObj => dateRangeObj.start === this.isStart)
+
+        if (!this.isStart && selectDateRange.length === 0) {
+          this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1)
+        }
+
+        this.populateCalendarStats(range?.[0] ? range?.[0].date : this.currentDate)
+        this.forceRender++
+      }
+    },
   },
 
   methods: {
@@ -149,7 +171,42 @@ export default {
           break;
       }
 
-      this.$emit('click:date', (new Date(this.calendarStats.year, month, date)))
+      this.$emit('click:date', ({ date: new Date(this.calendarStats.year, month, date), start: this.isStart }))
+    },
+
+    isDateSelected(day) {
+      const dateTemp = new Date(this.calendarStats.year, this.calendarStats.month, day)
+
+      const sameDay = this.selectDateRange.find(dateObj => {
+        if (isSameDate(dateObj.date, dateTemp)) {
+          return true
+        }
+
+        return false
+      })
+
+      return !!sameDay
+    },
+
+    isDateInBetweenRange(day, changeMonth = 0) {
+      if (this.selectDateRange.length === 2) {
+        const current = new Date(this.calendarStats.year, this.calendarStats.month + changeMonth, day).getTime()
+        const date1 = this.selectDateRange[0].date.getTime()
+        const date2 = this.selectDateRange[1].date.getTime()
+
+
+        if (date1 < date2) {
+          if (date1 < current && current < date2) {
+            return true
+          }
+        } else {
+          if (date2 < current && current < date1) return true
+        }
+
+        return false
+      }
+
+      return false
     }
   }
 }
@@ -217,5 +274,14 @@ export default {
 
 .j-calendar .text-light {
   color: #777;
+}
+
+
+.highlight, .active {
+  background-color: #267c2ef9;
+}
+
+.active > div {
+  background-color: #267c2e;
 }
 </style>
