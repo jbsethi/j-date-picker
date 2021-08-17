@@ -12,14 +12,24 @@
       }"
     >
       <date-picker
-        v-if="picker === 'date'"
+        v-if="['date', 'month'].includes(picker)"
+        :selector="selector"
+        :filterSelected="filterSelected"
         ref="date-picker"
         :selectedDate="clickedDate || date"
         @click:date="selectDate"
+        @filterChanged="filterAppliedDatePicker"
       />
-      <date-range-picker v-if="picker === 'date-range'" />
 
-      <div v-if="actions && actions.length > 0" v-bind="actionsAttr">
+      <date-range-picker
+        :key="show"
+        v-if="picker === 'date-range'"
+        ref="date-range-picker"
+        :selectedRange="clickedRange.length ? clickedRange : selectedRange"
+        @range:selected="selectRange"
+      />
+
+      <div v-if="actions && actions.length > 0 && filterSelected === selector" v-bind="actionsAttr">
         <button @click="handleAction(action.handler)" v-for="(action, idx) in actions" :key="action.text + idx" v-bind="action.attr" >{{ action.text }}</button>
       </div>
     </div>
@@ -27,6 +37,7 @@
 </template>
 
 <script>
+import { isSameMonth } from './utils/utils'
 export default {
   name: 'JDatePicker',
   components: {
@@ -39,15 +50,18 @@ export default {
   },
   props: {
     date: {
-      type: Date,
-      default: () => new Date()
+      type: [Date, Object],
+      default: () => ({
+          start: new Date(),
+          end: new Date(new Date().getDate() + 7)
+        })
     },
     picker: {
       type: String,
       default: 'date',
       validator(value) {
         // The value must match one of these strings
-        return ['date', 'date-range'].includes(value)
+        return ['date', 'month', 'date-range'].includes(value)
       }
     },
     options: {
@@ -87,8 +101,12 @@ export default {
     return {
       show: false,
       topPosition: 0,
+      selectedRange: [],
 
       clickedDate: null,
+      clickedRange: [],
+      selector: 0,
+      filterSelected: 0,
 
       handlers: {
         'apply': 'applySelectedDate',
@@ -102,6 +120,57 @@ export default {
   beforeUnmount () {
     document.removeEventListener('click', this.clickEventHandler.bind(this))
   },
+
+  watch: {
+    picker: {
+      immediate: true,
+      handler(value) {
+        if (value === 'date') {
+          this.selector = 0
+        } else if (value === 'month') {
+          this.selector = 1
+        } else {
+          this.selector = -1
+        }
+      }
+    },
+
+    selector: {
+      immediate: true,
+      handler(value) {
+        this.filterSelected = value
+      }
+    },
+
+    date: {
+      immediate: true,
+      deep: true,
+      handler(value) {
+        if (this.picker === 'date-range') {
+          if (value?.start && value?.end) {
+            const isSame = isSameMonth(value.start, value.end)
+            this.selectedRange = [
+              { date: value.start, start: true },
+              { date: value.end, start: isSame },
+            ]
+          } else {
+            let startDate = new Date()
+            let endDate = new Date()
+            endDate.setDate(endDate.getDate() + 6)
+
+            const isSame = isSameMonth(startDate, endDate)
+            this.selectedRange = this.clickedRange = [
+              { date: new Date(), start: true },
+              { date: endDate, start: isSame },
+            ]
+
+            this.$emit('apply', { start: startDate, end: endDate })
+          }
+        }
+      }
+    }
+  },
+
   methods: {
     togglePicker () {
       this.show = !this.show
@@ -123,18 +192,36 @@ export default {
       this.clickedDate = clickedDate
     },
 
+    selectRange (clickedRange) {
+      this.clickedRange = clickedRange
+    },
+
     applySelectedDate() {
       this.togglePicker()
-      this.$emit('apply', this.clickedDate)
+
+      if (this.selector === -1) {
+        this.$emit('apply', this.clickedRange.length == 2 ? { start: this.clickedRange[0].date, end: this.clickedRange[1].date }  : this.date)
+      } else {
+        this.$emit('apply', this.clickedDate || this.date)
+
+        if (!this.options.saveLastState) {
+          this.$refs['date-picker'].populateCalendarStats(this.clickedDate || this.date);
+        }
+      }
 
       this.clickedDate = null
+      this.clickedRange= []
     },
 
     cancelSelectedDate() {
       this.togglePicker()
       if (!this.options.saveLastState) {
         this.clickedDate = null
-        this.$refs['date-picker'].populateCalendarStats(this.date);
+        if (this.selector === -1) {
+          this.clickedRange = []
+        } else {
+          this.$refs['date-picker'].populateCalendarStats(this.date);
+        }
       }
     },
 
@@ -144,6 +231,10 @@ export default {
       } else {
         this.$emit(handler)
       }
+    },
+
+    filterAppliedDatePicker(filterApplied) {
+      this.filterSelected = filterApplied
     }
   }
 }

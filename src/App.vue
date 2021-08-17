@@ -2,6 +2,7 @@
   <div id="app">
     <JDatePicker
       v-model="date"
+      picker="date-range"
       :options="{
         saveLastState: false
       }"
@@ -14,11 +15,16 @@
         }
       }"
       :actions="[
-        { text: 'cancel', handler: 'cancel', attr: {} },
+        { text: 'cancel', handler: 'cancel', attr: {
+          class: 'w-full',
+          style: {
+            backgroundColor: 'green'
+          }
+        } },
         { text: 'apply', handler: 'apply', attr: {} },
       ]"
     >
-      <button>{{ date.toLocaleString() }}</button>
+      <button>{{ date }}</button>
     </JDatePicker>
   </div>
 </template>
@@ -32,7 +38,7 @@ export default {
   },
   data() {
     return {
-      date: new Date()
+      date: null
     }
   }
 }

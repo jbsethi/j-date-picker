@@ -55,6 +55,10 @@ export default {
     isStart: {
       type: Boolean,
       default: false
+    },
+    rangeIsSameMonth: {
+      type: Boolean,
+      default: true
     }
   },
   data () {
@@ -107,14 +111,16 @@ export default {
       immediate: true,
       deep: true,
       handler (selectDateRange) {
-        const range = selectDateRange.filter(dateRangeObj => dateRangeObj.start === this.isStart)
-
-        if (!this.isStart && selectDateRange.length === 0) {
-          this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1)
-        }
-
-        this.populateCalendarStats(range?.[0] ? range?.[0].date : this.currentDate)
-        this.forceRender++
+        if (selectDateRange?.length === 2) {
+          const startRange = selectDateRange.find(range => range.start === true)?.date
+          const endRange = selectDateRange.find(range => range.start === false)?.date
+          if (this.isStart) {
+            this.populateCalendarStats(startRange ? startRange : new Date(endRange.getFullYear(), endRange.getMonth() - 1 , 1))
+          } else {
+            this.populateCalendarStats(endRange ? endRange : new Date(startRange.getFullYear(), startRange.getMonth() + 1 , 1))
+          }
+          this.forceRender++
+        } 
       }
     },
   },

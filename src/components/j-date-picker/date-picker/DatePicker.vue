@@ -5,8 +5,9 @@
         <img @click.stop="changeByFilter(-1)" :src="require('../assets/images/chevron-left.svg')" alt="chevron left" />
       </div>
       <div class="control-main">
-        <div @click="filterSelected = 1" v-if="filterSelected === 0">{{ month }} {{ calendarStats.year }}</div>
-        <div @click="filterSelected = 0" v-if="filterSelected === 1">{{ calendarStats.year }}</div>
+        <div @click.stop="$emit('filterChanged', 1)" v-if="filterSelected === 0">{{ month }} {{ calendarStats.year }}</div>
+        <div @click.stop="$emit('filterChanged', 2)" v-if="filterSelected === 1">{{ calendarStats.year }}</div>
+        <div v-if="filterSelected === 2">{{ calendarStats.year }} - {{ calendarStats.year + 11 }}</div>
       </div>
       <div class="control-forward">
         <img @click.stop="changeByFilter(+1)" :src="require('../assets/images/chevron-right.svg')" alt="chevron right" />
@@ -19,12 +20,12 @@
       </div>
 
       <!-- Days in previous month -->
-      <div class="text-light day" @click.stop="clickDate('p', calendarStats.daysInPrevMonth - (calendarStats.daysPaddedBefore - day))" v-for="(day, idx) in calendarStats.daysPaddedBefore" :key="'p' + day + idx + forceRender">
+      <div class="text-light"  @click.stop="clickDate('p', calendarStats.daysInPrevMonth - (calendarStats.daysPaddedBefore - day))" v-for="(day, idx) in calendarStats.daysPaddedBefore" :key="'p' + day + idx + forceRender">
         <div class="day">{{ calendarStats.daysInPrevMonth - (calendarStats.daysPaddedBefore - day) }}</div>
       </div>
 
       <!-- Days in current month -->
-      <div @click.stop="clickDate('c', day)" v-for="(day, idx) in calendarStats.daysInMonth" :key="'c' + day + idx + forceRender">
+      <div :class="{'active': isDateSelected(day)}" @click.stop="clickDate('c', day)" v-for="(day, idx) in calendarStats.daysInMonth" :key="'c' + day + idx + forceRender">
         <div class="day">{{ day }}</div>
       </div>
 
@@ -36,23 +37,33 @@
     <div v-show="filterSelected === 1" class="j-months">
       <div v-for="(month, idx) in monthNames" :key="month"><div @click="changeMonth(idx - calendarStats.month)">{{ month.substring(0,3) }}</div></div>
     </div>
+    <div v-show="filterSelected === 2" class="j-years">
+      <div v-for="(year, idx) in 12" :key="'y' + idx" @click="changeYear(calendarStats.year + idx - calendarStats.year)"><div>{{ (calendarStats.year + idx) }}</div></div>
+    </div>
   </div>
 </template>
 
 <script>
-import { daysInMonth, firstDayOfMonth } from '../utils/utils'
+import { daysInMonth, firstDayOfMonth, isSameDate } from '../utils/utils'
 export default {
   name: 'date-picker',
   props: {
     selectedDate: {
       type: Date,
       default: null
+    },
+    selector: {
+      type: Number,
+      default: 0
+    },
+    filterSelected: {
+      type: Number,
+      default: 0
     }
   },
   data () {
     return {
       forceRender: 0,
-      filterSelected: 0,
       weekDays: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
       monthNames: [
         'January',
@@ -94,7 +105,7 @@ export default {
         this.populateCalendarStats(selectDate ? selectDate : this.currentDate)
         this.forceRender++
       }
-    }
+    },
   },
 
   methods: {
@@ -120,20 +131,38 @@ export default {
         this.changeMonth(status)
       } else if (this.filterSelected === 1) {
         this.changeYear(status)
+      } else if (this.filterSelected === 2) {
+        this.changeMutipleYears(status)
       }
     },
 
     changeMonth(status) {
       const newCalendarDate = new Date(this.calendarStats.year, this.calendarStats.month + status, 1)
-      this.populateCalendarStats(newCalendarDate)
-
-      this.filterSelected = 0
-      this.forceRender++
+      
+      if (this.selector === 0) {
+        this.populateCalendarStats(newCalendarDate)
+        this.$emit('filterChanged', 0)
+        this.forceRender++
+      } else {
+        this.$emit('click:date', (newCalendarDate))
+      }
       this.$emit('click:changeMonth', (newCalendarDate))
     },
 
     changeYear(status) {
       const newCalendarDate = new Date(this.calendarStats.year + status, this.calendarStats.month, 1)
+
+      if (this.selector === 2) {
+        this.$emit('click:changeMonth', (newCalendarDate))
+      } else {
+        this.populateCalendarStats(newCalendarDate)
+        this.$emit('filterChanged', 1)
+        this.forceRender++
+      }
+    },
+
+    changeMutipleYears(status) {
+      const newCalendarDate = new Date(this.calendarStats.year + (status * 12), this.calendarStats.month, 1)
       this.populateCalendarStats(newCalendarDate)
     },
 
@@ -150,7 +179,13 @@ export default {
       }
 
       this.$emit('click:date', (new Date(this.calendarStats.year, month, date)))
-    }
+    },
+    
+    isDateSelected(day) {
+      const dateTemp = new Date(this.calendarStats.year, this.calendarStats.month, day)
+
+      return isSameDate(this.selectedDate, dateTemp)
+    },
   }
 }
 </script>
@@ -185,14 +220,14 @@ export default {
   text-align: center;
 }
 
-.j-months {
+.j-months, .j-years {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(3, auto);
   text-align: center;
 }
 
-.j-calendar > *, .j-months > * {
+.j-calendar > *, .j-months > *, .j-years > * {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -202,7 +237,7 @@ export default {
   color: #1d273e;
 }
 
-.j-months > * {
+.j-months > *, .j-years > * {
   width: 100%;
   height: 49px;
 }
